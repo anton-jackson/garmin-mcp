@@ -12,7 +12,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Re
 from starlette.routing import Route
 
 from . import oauth
-from .tools import activities, hrv, sleep, training_status
+from .tools import activities, hrv, rhr, training_status
 
 # Permissive transport security: we're behind Cloud Run's HTTPS frontend and gate
 # access via our own bearer token middleware, so DNS-rebinding protection is moot.
@@ -28,8 +28,8 @@ except ImportError:
     mcp = FastMCP("garmin-mcp")
 
 activities.register(mcp)
-sleep.register(mcp)
 hrv.register(mcp)
+rhr.register(mcp)
 training_status.register(mcp)
 
 
