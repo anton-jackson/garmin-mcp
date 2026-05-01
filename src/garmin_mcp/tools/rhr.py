@@ -1,4 +1,4 @@
-"""Sleep MCP tools."""
+"""Resting heart rate MCP tools."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -17,13 +17,13 @@ def _safe(fn):
 
 def register(mcp):
     @mcp.tool()
-    def get_sleep(date_: str) -> dict[str, Any]:
-        """Sleep stages, scores, SpO2, respiration for a single date (yyyy-mm-dd)."""
-        return _safe(lambda: normalize(get_client().get_sleep_data(date_)))
+    def get_rhr(date_: str) -> dict[str, Any]:
+        """Resting heart rate for a single date (yyyy-mm-dd)."""
+        return _safe(lambda: normalize(get_client().get_rhr_day(date_)))
 
     @mcp.tool()
-    def get_sleep_range(start: str, end: str) -> dict[str, Any]:
-        """Sleep data across an inclusive date range (yyyy-mm-dd)."""
+    def get_rhr_range(start: str, end: str) -> dict[str, Any]:
+        """Resting heart rate across an inclusive date range (yyyy-mm-dd)."""
         def go():
             client = get_client()
             d0 = date.fromisoformat(start)
@@ -31,7 +31,7 @@ def register(mcp):
             days = []
             cur = d0
             while cur <= d1:
-                days.append({"date": cur.isoformat(), "sleep": normalize(client.get_sleep_data(cur.isoformat()))})
+                days.append({"date": cur.isoformat(), "rhr": normalize(client.get_rhr_day(cur.isoformat()))})
                 cur += timedelta(days=1)
             return {"days": days}
         return _safe(go)
