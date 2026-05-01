@@ -12,7 +12,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Re
 from starlette.routing import Route
 
 from . import oauth
-from .tools import activities, hrv, sleep
+from .tools import activities, hrv, sleep, training_status
 
 # Permissive transport security: we're behind Cloud Run's HTTPS frontend and gate
 # access via our own bearer token middleware, so DNS-rebinding protection is moot.
@@ -30,6 +30,7 @@ except ImportError:
 activities.register(mcp)
 sleep.register(mcp)
 hrv.register(mcp)
+training_status.register(mcp)
 
 
 def _server_url() -> str:
