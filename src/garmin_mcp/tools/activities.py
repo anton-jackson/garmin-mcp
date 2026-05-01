@@ -39,18 +39,28 @@ def register(mcp):
         include: list[str] | None = None,
         every: int = 10,
     ) -> dict[str, Any]:
-        """Fetch activity detail. include any of: summary, laps, records, records_downsampled."""
+        """Fetch activity detail. include any of: summary, laps, records, records_downsampled, training_status."""
         include = include or ["summary"]
         def go():
             out: dict[str, Any] = {}
+            client = get_client()
+            # Fetch summary when explicitly requested or needed to resolve the activity date
+            summary_data = None
+            if "summary" in include or "training_status" in include:
+                summary_data = normalize(client.get_activity(activity_id))
             if "summary" in include:
-                out["summary"] = normalize(get_client().get_activity(activity_id))
+                out["summary"] = summary_data
             if "laps" in include:
                 out["laps"] = normalize(parse_laps(activity_id))
             if "records" in include:
                 out["records"] = normalize(parse_records(activity_id, every=1))
             if "records_downsampled" in include:
                 out["records"] = normalize(parse_records(activity_id, every=every))
+            if "training_status" in include and summary_data:
+                start = summary_data.get("startTimeLocal") or summary_data.get("startTimeGMT", "")
+                activity_date = start[:10] if start else None
+                if activity_date:
+                    out["training_status"] = normalize(client.get_training_status(activity_date))
             return out
         return _safe(go)
 
