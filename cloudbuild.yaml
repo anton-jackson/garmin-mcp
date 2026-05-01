@@ -1,0 +1,21 @@
+steps:
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - garmin-mcp
+      - --source=.
+      - --region=us-central1
+      - --service-account=garmin-mcp-runtime@garmin-mcp-494916.iam.gserviceaccount.com
+      - --allow-unauthenticated
+      - --min-instances=1
+      - --max-instances=1
+      - --concurrency=10
+      - --memory=512Mi
+      - --timeout=300
+      - --set-env-vars=GARMIN_SESSION_BUCKET=garmin-mcp-494916-garmin-session,GARMIN_SESSION_DIR=/tmp/garminconnect,SERVER_URL=https://garmin.antonjackson.com,OAUTH_CLIENT_ID=garmin-mcp
+      - --set-secrets=GARMIN_EMAIL=garmin-email:latest,GARMIN_PASSWORD=garmin-password:latest,MCP_AUTH_TOKEN=mcp-auth-token:latest,OAUTH_CLIENT_SECRET=oauth-client-secret:latest
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s
