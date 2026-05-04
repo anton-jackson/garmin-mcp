@@ -111,7 +111,7 @@ def register(mcp):
         """Raw passthrough: active kcal, duration, HR, and time-in-zones for an activity.
 
         Debugging / inspection use only. Production callers should use
-        `estimate_activity_fueling`.
+        `estimate_activity_macros_burned`.
         """
         def go():
             client = get_client()
@@ -134,11 +134,11 @@ def register(mcp):
         return _safe(go)
 
     @mcp.tool()
-    def estimate_activity_fueling(
+    def estimate_activity_macros_burned(
         activity_id: int,
         zone_carb_fractions: list[float],
     ) -> dict[str, Any]:
-        """Estimate carb/fat fuel use for an activity using a caller-provided RER table.
+        """Estimate carb/fat macros burned during an activity using a caller-provided RER table.
 
         Args:
             activity_id: Garmin activity ID.
