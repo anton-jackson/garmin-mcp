@@ -160,7 +160,10 @@ def register(mcp):
         gets its own RER attribution rather than being redistributed across
         Z1..Z5. Time-in-zone for Z1..Z5 is binned by Garmin.
 
-        Returns: durationMin, activeCalories, carbKcal, carbG, fatKcal, fatG.
+        Returns: durationMin, activeCalories, and (for aerobic activities only)
+        carbKcal, carbG, fatKcal, fatG. Strength/anaerobic activities return
+        only durationMin and activeCalories — no macro breakdown, since HR-zone
+        fuel mix doesn't apply to anaerobic work.
         """
         if len(zone_carb_fractions) != 6:
             return {"error": "zone_carb_fractions must have 6 entries, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]"}
@@ -179,8 +182,6 @@ def register(mcp):
 
             if _is_strength(activity_type):
                 return normalize({
-                    "activityType": activity_type,
-                    "note": "Strength training: HR-zone carb/fat estimation does not apply. Calorie burn reported by Garmin.",
                     "durationMin": round(duration_sec / 60, 1),
                     "activeCalories": active_kcal,
                 })
