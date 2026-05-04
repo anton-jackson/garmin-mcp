@@ -142,16 +142,21 @@ def register(mcp):
 
         Args:
             activity_id: Garmin activity ID.
-            zone_carb_fractions: Carb-energy fraction per HR zone, ordered Z1..Z5.
-                Each value 0..1; fat fraction is 1 - carb. Example for an
-                average-trained athlete: [0.15, 0.35, 0.60, 0.85, 0.95].
+            zone_carb_fractions: Carb-energy fraction per HR bin, length 6,
+                ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]. Each value 0..1; fat
+                fraction is 1 - carb. The below-Z1 entry covers warmup/recovery
+                time below the Z1 lower boundary (e.g. resting walks), which is
+                heavily fat-dominant. Example fat-adapted athlete:
+                [0.05, 0.10, 0.20, 0.45, 0.75, 0.90].
+
+        Time weights use total activity duration as denominator so sub-Z1 time
+        gets its own RER attribution rather than being redistributed across
+        Z1..Z5. Time-in-zone for Z1..Z5 is binned by Garmin.
 
         Returns: durationMin, activeCalories, carbKcal, carbG, fatKcal, fatG.
-        Time-in-zone is binned by Garmin using the athlete's Garmin Connect
-        zone boundaries.
         """
-        if len(zone_carb_fractions) != 5:
-            return {"error": "zone_carb_fractions must have 5 entries, ordered Z1..Z5"}
+        if len(zone_carb_fractions) != 6:
+            return {"error": "zone_carb_fractions must have 6 entries, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]"}
         if not all(0.0 <= f <= 1.0 for f in zone_carb_fractions):
             return {"error": "each zone_carb_fractions entry must be between 0.0 and 1.0"}
 
@@ -166,8 +171,9 @@ def register(mcp):
             duration_sec = _detail_field(detail, "duration") or 0
 
             zone_secs_total = sum((z.get("secsInZone") or 0) for z in zones)
-            if zone_secs_total <= 0:
-                return {"error": "no time-in-zone data available for this activity"}
+            denom = max(duration_sec, zone_secs_total)
+            if denom <= 0:
+                return {"error": "no duration or time-in-zone data for this activity"}
 
             carb_frac = 0.0
             for z in zones:
@@ -175,7 +181,10 @@ def register(mcp):
                 secs = z.get("secsInZone") or 0
                 if not isinstance(zn, int) or zn < 1 or zn > 5:
                     continue
-                carb_frac += (secs / zone_secs_total) * zone_carb_fractions[zn - 1]
+                carb_frac += (secs / denom) * zone_carb_fractions[zn]
+
+            sub_z1_secs = max(0, denom - zone_secs_total)
+            carb_frac += (sub_z1_secs / denom) * zone_carb_fractions[0]
 
             carb_kcal = active_kcal * carb_frac
             fat_kcal = active_kcal * (1 - carb_frac)
