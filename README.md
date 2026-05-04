@@ -9,6 +9,7 @@ Hosted on Google Cloud Run. Auth via a static bearer token; Garmin credentials a
 - `list_activities(start_date?, end_date?, limit=20, activity_type?)`
 - `get_activity(activity_id, include=["summary"|"laps"|"records"|"records_downsampled"], every=10)`
 - `get_activity_fields(activity_id)` — schema introspection without data
+- `get_activity_fueling(activity_id)` — active kcal, duration, HR, time-in-zones for macro estimation
 - `get_sleep(date)` / `get_sleep_range(start, end)`
 - `get_hrv(date)` / `get_hrv_range(start, end)`
 - `submit_mfa(code)` — only when a prior call returned `needs_mfa: true`

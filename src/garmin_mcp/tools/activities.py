@@ -75,6 +75,33 @@ def register(mcp):
         return _safe(lambda: normalize(parse_schema(activity_id)))
 
     @mcp.tool()
+    def get_activity_fueling(activity_id: int) -> dict[str, Any]:
+        """Fueling inputs for an activity: active kcal, duration, HR, and time in each HR zone.
+
+        Returns the minimal data needed to estimate carb vs. fat fuel split agent-side.
+        Carb/fat kcal and gram conversions are intentionally not computed here — pair
+        zone time with an athlete profile in the calling skill.
+        """
+        def go():
+            client = get_client()
+            summary = client.get_activity(activity_id) or {}
+            zones = client.get_activity_hr_in_timezones(activity_id)
+
+            total = summary.get("calories") or 0
+            bmr = summary.get("bmrCalories") or 0
+            return normalize({
+                "activityType": (summary.get("activityType") or {}).get("typeKey"),
+                "startTimeLocal": summary.get("startTimeLocal"),
+                "durationSec": summary.get("duration"),
+                "distanceM": summary.get("distance"),
+                "activeCalories": total - bmr,
+                "avgHr": summary.get("averageHR"),
+                "maxHr": summary.get("maxHR"),
+                "hrTimeInZones": zones,
+            })
+        return _safe(go)
+
+    @mcp.tool()
     def submit_mfa(code: str) -> dict[str, Any]:
         """Provide an MFA code if a prior call returned needs_mfa."""
         return {"ok": _submit_mfa(code)}
