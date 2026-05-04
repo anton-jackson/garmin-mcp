@@ -29,6 +29,27 @@ def _active_calories(obj: Any) -> Any:
     return obj
 
 
+def _detail_field(detail: dict, key: str) -> Any:
+    """Read a field from an activity-detail response. Garmin nests calorie/duration/HR
+    fields inside `summaryDTO` for single-activity fetches but returns them flat in
+    list endpoints — check nested first, fall back to top-level."""
+    sdto = detail.get("summaryDTO") if isinstance(detail, dict) else None
+    if isinstance(sdto, dict) and key in sdto:
+        return sdto[key]
+    return detail.get(key) if isinstance(detail, dict) else None
+
+
+def _detail_activity_type(detail: dict) -> str | None:
+    atype = detail.get("activityTypeDTO") or detail.get("activityType") or {}
+    return atype.get("typeKey") if isinstance(atype, dict) else None
+
+
+def _iso_t(s: Any) -> Any:
+    if isinstance(s, str) and " " in s:
+        return s.replace(" ", "T", 1)
+    return s
+
+
 def register(mcp):
     @mcp.tool()
     def list_activities(
@@ -36,15 +57,32 @@ def register(mcp):
         end_date: str | None = None,
         limit: int = 20,
         activity_type: str | None = None,
-    ) -> dict[str, Any]:
-        """List Garmin activities. Dates are ISO yyyy-mm-dd. activity_type e.g. 'running', 'cycling'."""
+    ) -> Any:
+        """List Garmin activities. Dates are ISO yyyy-mm-dd. activity_type e.g. 'running', 'cycling'.
+
+        Returns an array of activity summaries with: activityId, activityName,
+        activityType.typeKey, startTimeLocal, durationSec, activeCalories.
+        """
         def go():
             client = get_client()
             if start_date and end_date:
                 items = client.get_activities_by_date(start_date, end_date, activity_type or "")
             else:
                 items = client.get_activities(0, limit)
-            return {"activities": _active_calories(normalize(items))}
+            out = []
+            for it in items or []:
+                total = it.get("calories") or 0
+                bmr = it.get("bmrCalories") or 0
+                atype = it.get("activityType") or {}
+                out.append({
+                    "activityId": it.get("activityId"),
+                    "activityName": it.get("activityName"),
+                    "activityType": {"typeKey": atype.get("typeKey") if isinstance(atype, dict) else None},
+                    "startTimeLocal": it.get("startTimeLocal"),
+                    "durationSec": it.get("duration"),
+                    "activeCalories": total - bmr,
+                })
+            return normalize(out)
         return _safe(go)
 
     @mcp.tool()
@@ -76,27 +114,26 @@ def register(mcp):
 
     @mcp.tool()
     def get_activity_fueling(activity_id: int) -> dict[str, Any]:
-        """Fueling inputs for an activity: active kcal, duration, HR, and time in each HR zone.
+        """Raw passthrough: active kcal, duration, HR, and time-in-zones for an activity.
 
-        Returns the minimal data needed to estimate carb vs. fat fuel split agent-side.
-        Carb/fat kcal and gram conversions are intentionally not computed here — pair
-        zone time with an athlete profile in the calling skill.
+        Debugging / inspection use only. Production callers should use
+        `estimate_activity_fueling`.
         """
         def go():
             client = get_client()
-            summary = client.get_activity(activity_id) or {}
+            detail = client.get_activity(activity_id) or {}
             zones = client.get_activity_hr_in_timezones(activity_id)
 
-            total = summary.get("calories") or 0
-            bmr = summary.get("bmrCalories") or 0
+            total = _detail_field(detail, "calories") or 0
+            bmr = _detail_field(detail, "bmrCalories") or 0
             return normalize({
-                "activityType": (summary.get("activityType") or {}).get("typeKey"),
-                "startTimeLocal": summary.get("startTimeLocal"),
-                "durationSec": summary.get("duration"),
-                "distanceM": summary.get("distance"),
+                "activityType": _detail_activity_type(detail),
+                "startTimeLocal": detail.get("startTimeLocal"),
+                "durationSec": _detail_field(detail, "duration"),
+                "distanceM": _detail_field(detail, "distance"),
                 "activeCalories": total - bmr,
-                "avgHr": summary.get("averageHR"),
-                "maxHr": summary.get("maxHR"),
+                "avgHr": _detail_field(detail, "averageHR"),
+                "maxHr": _detail_field(detail, "maxHR"),
                 "hrTimeInZones": zones,
             })
         return _safe(go)
@@ -114,9 +151,9 @@ def register(mcp):
                 Each value 0..1; fat fraction is 1 - carb. Example for an
                 average-trained athlete: [0.15, 0.35, 0.60, 0.85, 0.95].
 
-        Time-in-zone is binned by Garmin using the athlete's Garmin Connect zone
-        boundaries — `zoneLowBoundary` (HR) is included in `zoneBreakdown` so the
-        caller can sanity-check those bounds before trusting the estimate.
+        Returns: activityType, startTimeLocal, durationSec, activeCalories,
+        carbKcal, carbG, fatKcal, fatG. Time-in-zone is binned by Garmin using
+        the athlete's Garmin Connect zone boundaries.
         """
         if len(zone_carb_fractions) != 5:
             return {"error": "zone_carb_fractions must have 5 entries, ordered Z1..Z5"}
@@ -125,52 +162,38 @@ def register(mcp):
 
         def go():
             client = get_client()
-            summary = client.get_activity(activity_id) or {}
+            detail = client.get_activity(activity_id) or {}
             zones = client.get_activity_hr_in_timezones(activity_id) or []
 
-            total_kcal = summary.get("calories") or 0
-            bmr_kcal = summary.get("bmrCalories") or 0
+            total_kcal = _detail_field(detail, "calories") or 0
+            bmr_kcal = _detail_field(detail, "bmrCalories") or 0
             active_kcal = total_kcal - bmr_kcal
-            duration_sec = summary.get("duration") or 0
+            duration_sec = _detail_field(detail, "duration") or 0
 
             zone_secs_total = sum((z.get("secsInZone") or 0) for z in zones)
             if zone_secs_total <= 0:
                 return {"error": "no time-in-zone data available for this activity"}
 
             carb_frac = 0.0
-            breakdown = []
             for z in zones:
                 zn = z.get("zoneNumber")
                 secs = z.get("secsInZone") or 0
                 if not isinstance(zn, int) or zn < 1 or zn > 5:
                     continue
-                zone_carb_pct = zone_carb_fractions[zn - 1]
-                time_frac = secs / zone_secs_total
-                carb_frac += time_frac * zone_carb_pct
-                breakdown.append({
-                    "zone": zn,
-                    "secs": secs,
-                    "lowBoundaryHr": z.get("zoneLowBoundary"),
-                    "carbFraction": zone_carb_pct,
-                })
+                carb_frac += (secs / zone_secs_total) * zone_carb_fractions[zn - 1]
 
             carb_kcal = active_kcal * carb_frac
             fat_kcal = active_kcal * (1 - carb_frac)
+
             return normalize({
-                "activityType": (summary.get("activityType") or {}).get("typeKey"),
-                "startTimeLocal": summary.get("startTimeLocal"),
+                "activityType": _detail_activity_type(detail),
+                "startTimeLocal": _iso_t(detail.get("startTimeLocal")),
                 "durationSec": duration_sec,
-                "distanceM": summary.get("distance"),
-                "avgHr": summary.get("averageHR"),
-                "maxHr": summary.get("maxHR"),
                 "activeCalories": active_kcal,
-                "carbFraction": round(carb_frac, 4),
                 "carbKcal": round(carb_kcal, 1),
                 "carbG": round(carb_kcal / 4, 1),
                 "fatKcal": round(fat_kcal, 1),
                 "fatG": round(fat_kcal / 9, 1),
-                "carbGPerHour": round((carb_kcal / 4) / (duration_sec / 3600), 1) if duration_sec else 0,
-                "zoneBreakdown": breakdown,
             })
         return _safe(go)
 
