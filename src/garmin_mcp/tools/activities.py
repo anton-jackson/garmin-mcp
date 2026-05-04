@@ -161,9 +161,9 @@ def register(mcp):
         Z1..Z5. Time-in-zone for Z1..Z5 is binned by Garmin.
 
         Returns: durationMin, activeCalories, and (for aerobic activities only)
-        carbKcal, carbG, fatKcal, fatG. Strength/anaerobic activities return
-        only durationMin and activeCalories — no macro breakdown, since HR-zone
-        fuel mix doesn't apply to anaerobic work.
+        carbKcal, carbG, fatKcal, fatG. Strength activities return only
+        durationMin and activeCalories — no macro breakdown, since HR-zone
+        fuel mix doesn't model intermittent resistance work.
         """
         if len(zone_carb_fractions) != 6:
             return {"error": "zone_carb_fractions must have 6 entries, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]"}
