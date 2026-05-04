@@ -73,7 +73,7 @@ def register(mcp):
                     "activityName": it.get("activityName"),
                     "activityType": {"typeKey": atype.get("typeKey") if isinstance(atype, dict) else None},
                     "startTimeLocal": it.get("startTimeLocal"),
-                    "durationSec": it.get("duration"),
+                    "durationMin": round((it.get("duration") or 0) / 60, 1),
                     "activeCalories": total - bmr,
                 })
             return normalize(out)
@@ -120,10 +120,11 @@ def register(mcp):
 
             total = _detail_field(detail, "calories") or 0
             bmr = _detail_field(detail, "bmrCalories") or 0
+            duration_sec = _detail_field(detail, "duration") or 0
             return normalize({
                 "activityType": _detail_activity_type(detail),
                 "startTimeLocal": detail.get("startTimeLocal"),
-                "durationSec": _detail_field(detail, "duration"),
+                "durationMin": round(duration_sec / 60, 1),
                 "distanceM": _detail_field(detail, "distance"),
                 "activeCalories": total - bmr,
                 "avgHr": _detail_field(detail, "averageHR"),
@@ -145,7 +146,7 @@ def register(mcp):
                 Each value 0..1; fat fraction is 1 - carb. Example for an
                 average-trained athlete: [0.15, 0.35, 0.60, 0.85, 0.95].
 
-        Returns: durationSec, activeCalories, carbKcal, carbG, fatKcal, fatG.
+        Returns: durationMin, activeCalories, carbKcal, carbG, fatKcal, fatG.
         Time-in-zone is binned by Garmin using the athlete's Garmin Connect
         zone boundaries.
         """
@@ -180,7 +181,7 @@ def register(mcp):
             fat_kcal = active_kcal * (1 - carb_frac)
 
             return normalize({
-                "durationSec": duration_sec,
+                "durationMin": round(duration_sec / 60, 1),
                 "activeCalories": active_kcal,
                 "carbKcal": round(carb_kcal, 1),
                 "carbG": round(carb_kcal / 4, 1),
