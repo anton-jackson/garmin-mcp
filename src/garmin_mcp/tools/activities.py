@@ -44,12 +44,6 @@ def _detail_activity_type(detail: dict) -> str | None:
     return atype.get("typeKey") if isinstance(atype, dict) else None
 
 
-def _iso_t(s: Any) -> Any:
-    if isinstance(s, str) and " " in s:
-        return s.replace(" ", "T", 1)
-    return s
-
-
 def register(mcp):
     @mcp.tool()
     def list_activities(
@@ -151,9 +145,9 @@ def register(mcp):
                 Each value 0..1; fat fraction is 1 - carb. Example for an
                 average-trained athlete: [0.15, 0.35, 0.60, 0.85, 0.95].
 
-        Returns: activityType, startTimeLocal, durationSec, activeCalories,
-        carbKcal, carbG, fatKcal, fatG. Time-in-zone is binned by Garmin using
-        the athlete's Garmin Connect zone boundaries.
+        Returns: durationSec, activeCalories, carbKcal, carbG, fatKcal, fatG.
+        Time-in-zone is binned by Garmin using the athlete's Garmin Connect
+        zone boundaries.
         """
         if len(zone_carb_fractions) != 5:
             return {"error": "zone_carb_fractions must have 5 entries, ordered Z1..Z5"}
@@ -186,8 +180,6 @@ def register(mcp):
             fat_kcal = active_kcal * (1 - carb_frac)
 
             return normalize({
-                "activityType": _detail_activity_type(detail),
-                "startTimeLocal": _iso_t(detail.get("startTimeLocal")),
                 "durationSec": duration_sec,
                 "activeCalories": active_kcal,
                 "carbKcal": round(carb_kcal, 1),
