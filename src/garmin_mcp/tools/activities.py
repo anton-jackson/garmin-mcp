@@ -44,6 +44,13 @@ def _detail_activity_type(detail: dict) -> str | None:
     return atype.get("typeKey") if isinstance(atype, dict) else None
 
 
+_STRENGTH_TYPE_KEYS = {"strength_training", "fitness_equipment"}
+
+
+def _is_strength(activity_type: str | None) -> bool:
+    return bool(activity_type and activity_type in _STRENGTH_TYPE_KEYS)
+
+
 def register(mcp):
     @mcp.tool()
     def list_activities(
@@ -163,12 +170,22 @@ def register(mcp):
         def go():
             client = get_client()
             detail = client.get_activity(activity_id) or {}
-            zones = client.get_activity_hr_in_timezones(activity_id) or []
 
+            activity_type = _detail_activity_type(detail)
             total_kcal = _detail_field(detail, "calories") or 0
             bmr_kcal = _detail_field(detail, "bmrCalories") or 0
             active_kcal = total_kcal - bmr_kcal
             duration_sec = _detail_field(detail, "duration") or 0
+
+            if _is_strength(activity_type):
+                return normalize({
+                    "activityType": activity_type,
+                    "note": "Strength training: HR-zone carb/fat estimation does not apply. Calorie burn reported by Garmin.",
+                    "durationMin": round(duration_sec / 60, 1),
+                    "activeCalories": active_kcal,
+                })
+
+            zones = client.get_activity_hr_in_timezones(activity_id) or []
 
             zone_secs_total = sum((z.get("secsInZone") or 0) for z in zones)
             denom = max(duration_sec, zone_secs_total)
