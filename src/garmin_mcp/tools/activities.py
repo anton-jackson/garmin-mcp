@@ -114,33 +114,6 @@ def register(mcp):
         return _safe(lambda: normalize(parse_schema(activity_id)))
 
     @mcp.tool()
-    def get_activity_fueling(activity_id: int) -> dict[str, Any]:
-        """Raw passthrough: active kcal, duration, HR, and time-in-zones for an activity.
-
-        Debugging / inspection use only. Production callers should use
-        `estimate_activity_macros_burned`.
-        """
-        def go():
-            client = get_client()
-            detail = client.get_activity(activity_id) or {}
-            zones = client.get_activity_hr_in_timezones(activity_id)
-
-            total = _detail_field(detail, "calories") or 0
-            bmr = _detail_field(detail, "bmrCalories") or 0
-            duration_sec = _detail_field(detail, "duration") or 0
-            return normalize({
-                "activityType": _detail_activity_type(detail),
-                "startTimeLocal": detail.get("startTimeLocal"),
-                "durationMin": round(duration_sec / 60, 1),
-                "distanceM": _detail_field(detail, "distance"),
-                "activeCalories": total - bmr,
-                "avgHr": _detail_field(detail, "averageHR"),
-                "maxHr": _detail_field(detail, "maxHR"),
-                "hrTimeInZones": zones,
-            })
-        return _safe(go)
-
-    @mcp.tool()
     def estimate_activity_macros_burned(
         activity_id: int,
         zone_carb_fractions: list[float],
