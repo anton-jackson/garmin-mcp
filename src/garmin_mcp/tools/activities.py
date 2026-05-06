@@ -116,32 +116,39 @@ def register(mcp):
     @mcp.tool()
     def estimate_activity_macros_burned(
         activity_id: int,
-        zone_carb_fractions: list[float],
+        zone_carb_fractions: list[float] | None = None,
     ) -> dict[str, Any]:
         """Estimate carb/fat macros burned during an activity using a caller-provided RER table.
 
         Args:
             activity_id: Garmin activity ID.
-            zone_carb_fractions: Carb-energy fraction per HR bin, length 6,
-                ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]. Each value 0..1; fat
-                fraction is 1 - carb. The below-Z1 entry covers warmup/recovery
-                time below the Z1 lower boundary (e.g. resting walks), which is
-                heavily fat-dominant. Example fat-adapted athlete:
-                [0.05, 0.10, 0.20, 0.45, 0.75, 0.90].
+            zone_carb_fractions: Optional. Carb-energy fraction per HR bin,
+                length 6, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]. Each value
+                0..1; fat fraction is 1 - carb. The below-Z1 entry covers
+                warmup/recovery time below the Z1 lower boundary (e.g. resting
+                walks), which is heavily fat-dominant. Example fat-adapted
+                athlete: [0.05, 0.10, 0.20, 0.45, 0.75, 0.90].
+
+                Omit this argument for interval workouts where HR lag biases
+                time-in-zone — the tool then returns only durationMin and
+                activeCalories, leaving the carb/fat split to the caller (who
+                has the user's stated session structure).
 
         Time weights use total activity duration as denominator so sub-Z1 time
         gets its own RER attribution rather than being redistributed across
         Z1..Z5. Time-in-zone for Z1..Z5 is binned by Garmin.
 
-        Returns: durationMin, activeCalories, and (for aerobic activities only)
-        carbKcal, carbG, fatKcal, fatG. Strength activities return only
-        durationMin and activeCalories — no macro breakdown, since HR-zone
-        fuel mix doesn't model intermittent resistance work.
+        Returns: durationMin and activeCalories always. When
+        zone_carb_fractions is provided and the activity is aerobic, also
+        returns carbKcal, carbG, fatKcal, fatG. Strength activities and the
+        interval path (no zone_carb_fractions) return only durationMin and
+        activeCalories.
         """
-        if len(zone_carb_fractions) != 6:
-            return {"error": "zone_carb_fractions must have 6 entries, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]"}
-        if not all(0.0 <= f <= 1.0 for f in zone_carb_fractions):
-            return {"error": "each zone_carb_fractions entry must be between 0.0 and 1.0"}
+        if zone_carb_fractions is not None:
+            if len(zone_carb_fractions) != 6:
+                return {"error": "zone_carb_fractions must have 6 entries, ordered [below-Z1, Z1, Z2, Z3, Z4, Z5]"}
+            if not all(0.0 <= f <= 1.0 for f in zone_carb_fractions):
+                return {"error": "each zone_carb_fractions entry must be between 0.0 and 1.0"}
 
         def go():
             client = get_client()
@@ -153,7 +160,7 @@ def register(mcp):
             active_kcal = total_kcal - bmr_kcal
             duration_sec = _detail_field(detail, "duration") or 0
 
-            if _is_strength(activity_type):
+            if zone_carb_fractions is None or _is_strength(activity_type):
                 return normalize({
                     "durationMin": round(duration_sec / 60, 1),
                     "activeCalories": active_kcal,
