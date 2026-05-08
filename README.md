@@ -10,8 +10,7 @@ Hosted on Google Cloud Run. Auth via a static bearer token; Garmin credentials a
 - `get_activity(activity_id, include=["summary"|"laps"|"records"|"records_downsampled"], every=10)`
 - `get_activity_fields(activity_id)` — schema introspection without data
 - `estimate_activity_macros_burned(activity_id, zone_carb_fractions)` — applies a caller-provided 6-element RER table `[below-Z1, Z1..Z5]`; returns `durationMin`, `activeCalories`, `carbKcal`, `carbG`, `fatKcal`, `fatG`
-- `get_sleep(date)` / `get_sleep_range(start, end)`
-- `get_hrv(date)` / `get_hrv_range(start, end)`
+- `get_daily_metrics(start, end?)` — resting HR, HRV, and weight summaries for one day or a date range
 - `submit_mfa(code)` — only when a prior call returned `needs_mfa: true`
 
 ## Deploy
