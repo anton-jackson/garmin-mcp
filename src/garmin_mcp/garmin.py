@@ -46,6 +46,12 @@ def _build_client() -> Garmin:
     client.garth.dump(str(token_dir))
     if store is not None:
         store.push()
+    # A fresh login with return_on_mfa=True returns before garminconnect loads
+    # the social profile, leaving display_name unset. Endpoints that build URLs
+    # via _require_display_name() (get_rhr_day, get_hrv_data) then fail with
+    # "Display name is not set". Reload from the dumped tokens, which routes
+    # through the cached-token path that populates the profile.
+    client.login(str(token_dir))
     return client
 
 
