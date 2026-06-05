@@ -18,6 +18,30 @@ class NeedsMFA(Exception):
     """Raised when the Garmin login flow needs an MFA code from the user."""
 
 
+# Garmin profile path that returns the account's displayName (and userName).
+_SOCIAL_PROFILE = "/userprofile-service/socialProfile"
+
+
+def _ensure_display_name(client: Garmin) -> None:
+    """Guarantee ``client.display_name`` is populated before the client is used.
+
+    Some garminconnect versions don't set ``display_name`` on the token-based
+    login path (the "tokenstore path may not populate it" fix is only in newer
+    releases). When it's unset, get_rhr_day/get_hrv_data raise "Display name is
+    not set" while every other endpoint keeps working, because those two are the
+    only ones that build their URL via the display name. Fetch it explicitly so
+    the result is the same regardless of garminconnect version or login path.
+    """
+    if getattr(client, "display_name", None):
+        return
+    try:
+        prof = client.connectapi(_SOCIAL_PROFILE)
+    except Exception:
+        return
+    if isinstance(prof, dict):
+        client.display_name = prof.get("displayName") or prof.get("userName")
+
+
 def _build_client() -> Garmin:
     email = os.environ["GARMIN_EMAIL"]
     password = os.environ["GARMIN_PASSWORD"]
@@ -33,6 +57,7 @@ def _build_client() -> Garmin:
     # Try cached session first.
     try:
         client.login(str(token_dir))
+        _ensure_display_name(client)
         return client
     except (FileNotFoundError, GarminConnectAuthenticationError):
         pass
@@ -47,11 +72,8 @@ def _build_client() -> Garmin:
     if store is not None:
         store.push()
     # A fresh login with return_on_mfa=True returns before garminconnect loads
-    # the social profile, leaving display_name unset. Endpoints that build URLs
-    # via _require_display_name() (get_rhr_day, get_hrv_data) then fail with
-    # "Display name is not set". Reload from the dumped tokens, which routes
-    # through the cached-token path that populates the profile.
-    client.login(str(token_dir))
+    # the social profile, so display_name is unset here too.
+    _ensure_display_name(client)
     return client
 
 
@@ -78,6 +100,7 @@ def submit_mfa(code: str) -> bool:
     store = default_store()
     if store is not None:
         store.push()
+    _ensure_display_name(client)
     _client = client
     _pending_mfa = None
     return True
