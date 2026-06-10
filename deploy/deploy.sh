@@ -70,7 +70,7 @@ case "$cmd" in
       --region="$REGION" \
       --service-account="$SA_EMAIL" \
       --allow-unauthenticated \
-      --min-instances=1 \
+      --min-instances=0 \
       --max-instances=1 \
       --concurrency=10 \
       --memory=512Mi \
