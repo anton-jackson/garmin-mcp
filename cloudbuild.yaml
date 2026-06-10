@@ -9,7 +9,7 @@ steps:
       - --region=us-central1
       - --service-account=garmin-mcp-runtime@garmin-mcp-494916.iam.gserviceaccount.com
       - --allow-unauthenticated
-      - --min-instances=1
+      - --min-instances=0
       - --max-instances=1
       - --concurrency=10
       - --memory=512Mi
