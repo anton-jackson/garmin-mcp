@@ -74,7 +74,7 @@ case "$cmd" in
       --max-instances=1 \
       --concurrency=10 \
       --memory=512Mi \
-      --timeout=300 \
+      --timeout=3600 \
       --set-env-vars="GARMIN_SESSION_BUCKET=${BUCKET},GARMIN_SESSION_DIR=/tmp/garminconnect,SERVER_URL=${SERVER_URL},OAUTH_CLIENT_ID=garmin-mcp" \
       --set-secrets="GARMIN_EMAIL=garmin-email:latest,GARMIN_PASSWORD=garmin-password:latest,MCP_AUTH_TOKEN=mcp-auth-token:latest,OAUTH_CLIENT_SECRET=oauth-client-secret:latest"
     ;;

@@ -16,6 +16,11 @@ from .tools import activities, daily
 
 # Permissive transport security: we're behind Cloud Run's HTTPS frontend and gate
 # access via our own bearer token middleware, so DNS-rebinding protection is moot.
+# Stateless + JSON responses: no session state, GET /mcp returns 405 so clients
+# don't hold a standalone SSE stream open (kills the reconnect-loop log noise),
+# and POST responses are plain JSON instead of SSE. Pull-only tool server — we
+# never push server-initiated notifications, so nothing is lost.
+_stateless = {"stateless_http": True, "json_response": True}
 try:
     from mcp.server.transport_security import TransportSecuritySettings
     _security = TransportSecuritySettings(
@@ -23,9 +28,9 @@ try:
         allowed_hosts=["*"],
         allowed_origins=["*"],
     )
-    mcp = FastMCP("garmin-mcp", transport_security=_security)
+    mcp = FastMCP("garmin-mcp", transport_security=_security, **_stateless)
 except ImportError:
-    mcp = FastMCP("garmin-mcp")
+    mcp = FastMCP("garmin-mcp", **_stateless)
 
 activities.register(mcp)
 daily.register(mcp)
@@ -40,6 +45,22 @@ def _server_url() -> str:
 
 _PUBLIC_PREFIXES = ("/.well-known/", "/oauth/")
 _PUBLIC_PATHS = {"/healthz"}
+
+
+class RefuseGetStreamMiddleware(BaseHTTPMiddleware):
+    """Return 405 for GET /mcp.
+
+    Per the Streamable HTTP spec, 405 tells clients this server offers no
+    server-initiated SSE stream, and compliant clients (mcp-remote / the TS SDK)
+    stop re-opening it. The Python SDK still answers GET with a short-lived SSE
+    stream even in stateless mode, which sends clients into a reconnect loop.
+    We're a pull-only tool server — there are no server-initiated messages.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "GET" and request.url.path.rstrip("/") == "/mcp":
+            return Response(status_code=405, headers={"Allow": "POST"})
+        return await call_next(request)
 
 
 class BearerAuthMiddleware(BaseHTTPMiddleware):
@@ -167,6 +188,7 @@ def build_app():
 
     app = mcp.streamable_http_app()
     app.add_middleware(BearerAuthMiddleware, static_token=token)
+    app.add_middleware(RefuseGetStreamMiddleware)
 
     app.router.routes.extend([
         Route("/healthz", healthz, methods=["GET"]),
