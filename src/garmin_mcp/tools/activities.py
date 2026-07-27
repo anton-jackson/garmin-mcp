@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..fit import parse_laps, parse_records, parse_schema
+from ..fit import parse_laps, parse_messages, parse_records, parse_schema
 from ..format import normalize
 from ..garmin import NeedsMFA, get_client, submit_mfa as _submit_mfa
 
@@ -92,7 +92,8 @@ def register(mcp):
         include: list[str] | None = None,
         every: int = 10,
     ) -> dict[str, Any]:
-        """Fetch activity detail. include any of: summary, laps, records, records_downsampled.
+        """Fetch activity detail. include any of: summary, laps, records,
+        records_downsampled, hr_zones, power_zones.
 
         Defaults to ['summary', 'laps']. Laps are manually triggered by the athlete,
         so when they're present they encode intentional segments (per-lap pace, HR,
@@ -102,6 +103,11 @@ def register(mcp):
         Add 'records_downsampled' (uses `every`, default 10) when you need the
         elevation profile, GPS track, or sub-lap HR/pace dynamics. Use 'records'
         (full resolution, one point per second) only when downsampled isn't enough.
+
+        Also accepts "messages:<fit_message_name>" to dump a raw FIT message type
+        verbatim (e.g. "messages:unknown_216" to inspect a message fitparse doesn't
+        recognize by name, such as ClimbPro data) — add ":<every>" to downsample it,
+        e.g. "messages:record:10".
         """
         include = include or ["summary", "laps"]
         def go():
@@ -115,6 +121,19 @@ def register(mcp):
                 out["records"] = normalize(parse_records(activity_id, every=1))
             if "records_downsampled" in include:
                 out["records"] = normalize(parse_records(activity_id, every=every))
+            if "hr_zones" in include:
+                out["hr_zones"] = normalize(client.get_activity_hr_in_timezones(activity_id))
+            if "power_zones" in include:
+                out["power_zones"] = normalize(client.get_activity_power_in_timezones(activity_id))
+            for item in include:
+                if not item.startswith("messages:"):
+                    continue
+                parts = item.split(":", 2)
+                message_type = parts[1]
+                msg_every = int(parts[2]) if len(parts) > 2 else 1
+                out.setdefault("messages", {})[message_type] = normalize(
+                    parse_messages(activity_id, message_type, every=msg_every)
+                )
             return _active_calories(out)
         return _safe(go)
 
