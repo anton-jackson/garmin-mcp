@@ -92,8 +92,18 @@ def register(mcp):
         include: list[str] | None = None,
         every: int = 10,
     ) -> dict[str, Any]:
-        """Fetch activity detail. include any of: summary, laps, records, records_downsampled."""
-        include = include or ["summary"]
+        """Fetch activity detail. include any of: summary, laps, records, records_downsampled.
+
+        Defaults to ['summary', 'laps']. Laps are manually triggered by the athlete,
+        so when they're present they encode intentional segments (per-lap pace, HR,
+        elevation gain) — always look at them for run structure, pacing, or split
+        analysis. Summary alone won't show the shape of the activity.
+
+        Add 'records_downsampled' (uses `every`, default 10) when you need the
+        elevation profile, GPS track, or sub-lap HR/pace dynamics. Use 'records'
+        (full resolution, one point per second) only when downsampled isn't enough.
+        """
+        include = include or ["summary", "laps"]
         def go():
             out: dict[str, Any] = {}
             client = get_client()
