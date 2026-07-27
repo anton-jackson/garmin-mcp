@@ -53,3 +53,14 @@ def parse_records(activity_id: int | str, every: int = 1) -> list[dict[str, Any]
 def parse_laps(activity_id: int | str) -> list[dict[str, Any]]:
     fit = FitFile(_download_fit_bytes(activity_id))
     return [_record_to_dict(m) for m in fit.get_messages("lap")]
+
+
+def parse_messages(activity_id: int | str, message_type: str, every: int = 1) -> list[dict[str, Any]]:
+    """Dump any FIT message type, including ones fitparse can't name (e.g. "unknown_216")."""
+    fit = FitFile(_download_fit_bytes(activity_id))
+    out = []
+    for i, msg in enumerate(fit.get_messages(message_type)):
+        if i % every != 0:
+            continue
+        out.append(_record_to_dict(msg))
+    return out
