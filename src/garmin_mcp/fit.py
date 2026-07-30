@@ -50,9 +50,32 @@ def parse_records(activity_id: int | str, every: int = 1) -> list[dict[str, Any]
     return out
 
 
+def _derive_lap_pace(lap: dict[str, Any]) -> dict[str, Any]:
+    """Fill in speed/pace when Garmin's FIT omits them from the lap summary.
+
+    Some re-encoded Garmin downloads leave every speed field null on the lap
+    message (avg_speed, max_speed, and even the enhanced_* variants) while still
+    carrying total_distance and total_timer_time. Derive speed/pace from those so
+    callers never have to compute it themselves.
+    """
+    has_speed = any(
+        lap.get(k) is not None
+        for k in ("avg_speed", "enhanced_avg_speed")
+    )
+    dist = lap.get("total_distance")
+    time = lap.get("total_timer_time") or lap.get("total_elapsed_time")
+    if has_speed or not dist or not time:
+        return lap
+    mps = dist / time
+    lap["avg_speed_mps"] = round(mps, 3)
+    lap["pace_min_per_km"] = round((1000 / mps) / 60, 3)
+    lap["pace_min_per_mi"] = round((1609.34 / mps) / 60, 3)
+    return lap
+
+
 def parse_laps(activity_id: int | str) -> list[dict[str, Any]]:
     fit = FitFile(_download_fit_bytes(activity_id))
-    return [_record_to_dict(m) for m in fit.get_messages("lap")]
+    return [_derive_lap_pace(_record_to_dict(m)) for m in fit.get_messages("lap")]
 
 
 def parse_messages(activity_id: int | str, message_type: str, every: int = 1) -> list[dict[str, Any]]:
