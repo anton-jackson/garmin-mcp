@@ -100,6 +100,14 @@ def register(mcp):
         elevation gain) — always look at them for run structure, pacing, or split
         analysis. Summary alone won't show the shape of the activity.
 
+        Every lap carries `elevation_gain_m` and `elevation_loss_m`: the ascent and
+        descent Garmin's barometric altimeter recorded for that segment, in metres.
+        Report these whenever elevation, vert, or climbing is relevant, and treat
+        them as the authoritative figures — do NOT recompute vert by summing
+        altitude deltas from the record stream, which double-counts sensor noise the
+        device already filtered out. A null means the activity had no altimeter data
+        (treadmill, indoor); 0 means genuinely flat.
+
         Add 'records_downsampled' (uses `every`, default 10) when you need the
         elevation profile, GPS track, or sub-lap HR/pace dynamics. Use 'records'
         (full resolution, one point per second) only when downsampled isn't enough.

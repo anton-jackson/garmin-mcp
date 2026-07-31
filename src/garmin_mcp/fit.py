@@ -73,9 +73,24 @@ def _derive_lap_pace(lap: dict[str, Any]) -> dict[str, Any]:
     return lap
 
 
+def _lap_elevation(lap: dict[str, Any]) -> dict[str, Any]:
+    """Surface Garmin's own per-lap ascent/descent under a stable, always-present key.
+
+    total_ascent/total_descent come off the device's barometric altimeter and are
+    already spike-filtered by Garmin, so they're passed through untouched — never
+    recomputed from the record stream, whose altitudes carry spikes the device
+    already rejected. A lap with no altitude source at all (treadmill, indoor) omits
+    the FIT fields entirely; emit null there so the key is still present and callers
+    can tell "no altimeter data" from a genuinely flat 0.
+    """
+    lap["elevation_gain_m"] = lap.get("total_ascent")
+    lap["elevation_loss_m"] = lap.get("total_descent")
+    return lap
+
+
 def parse_laps(activity_id: int | str) -> list[dict[str, Any]]:
     fit = FitFile(_download_fit_bytes(activity_id))
-    return [_derive_lap_pace(_record_to_dict(m)) for m in fit.get_messages("lap")]
+    return [_lap_elevation(_derive_lap_pace(_record_to_dict(m))) for m in fit.get_messages("lap")]
 
 
 def parse_messages(activity_id: int | str, message_type: str, every: int = 1) -> list[dict[str, Any]]:
