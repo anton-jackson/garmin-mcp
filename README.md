@@ -11,6 +11,7 @@ Hosted on Google Cloud Run. Auth via a static bearer token; Garmin credentials a
 - `get_activity_fields(activity_id)` — schema introspection without data
 - `estimate_activity_macros_burned(activity_id, zone_carb_fractions)` — applies a caller-provided 6-element RER table `[below-Z1, Z1..Z5]`; returns `durationMin`, `activeCalories`, `carbKcal`, `carbG`, `fatKcal`, `fatG`
 - `get_daily_metrics(start, end?)` — resting HR, HRV, and weight summaries for one day or a date range
+- `get_daily_calories(start, end?)` — whole-day calorie burn (total / active / resting, as shown in the Garmin app) for one day or a date range
 - `submit_mfa(code)` — only when a prior call returned `needs_mfa: true`
 
 ## Deploy
